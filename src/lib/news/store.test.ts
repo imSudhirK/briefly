@@ -12,6 +12,7 @@ function article(
     title: url,
     description: null,
     url,
+    imageUrl: null,
     source: "The Indian Express",
     category: "india",
     region: "india",

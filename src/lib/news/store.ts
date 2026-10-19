@@ -12,7 +12,15 @@ export const WINDOW_HOURS = 48;
 // cached by Next's fetch cache instead.
 const REVALIDATE_SECONDS = 600;
 
-const parser = new Parser();
+const parser = new Parser({
+  customFields: {
+    item: [
+      ["media:thumbnail", "mediaThumbnail"],
+      ["media:content", "mediaContent", { keepArray: true }],
+      ["content:encoded", "contentEncoded"],
+    ],
+  },
+});
 
 export type NewsSnapshot = {
   articles: NormalizedArticle[];
@@ -43,7 +51,7 @@ async function fetchFeed(feed: FeedConfig): Promise<NormalizedArticle[]> {
 
   const parsed = await parser.parseString(xml);
 
-  return (parsed.items as RawFeedItem[])
+  return (parsed.items as unknown as RawFeedItem[])
     .map((item) => normalizeArticle(item, feed))
     .filter((item) => item !== null);
 }
