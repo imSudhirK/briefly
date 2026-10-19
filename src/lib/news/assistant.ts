@@ -138,19 +138,14 @@ function buildFallbackAnswer(
   articles: NormalizedArticle[],
 ): string {
   if (articles.length === 0) {
-    return "No recent stories matched your question in the current 48-hour briefing. Try searching for topics like Technology, India, World affairs, or Business.";
+    return "No recent stories matched your question in the current 48-hour briefing. Try exploring topics like Technology, India, World affairs, or Business.";
   }
 
-  const highlights = articles
-    .slice(0, 4)
-    .map((a) => `• **${a.title}** (${a.source} · ${a.category})`)
-    .join("\n");
+  const categories = Array.from(new Set(articles.map((a) => a.category)))
+    .map((c) => c.charAt(0).toUpperCase() + c.slice(1))
+    .join(", ");
 
-  return (
-    `Here are the most relevant stories from Briefly's briefing for "${query}":\n\n` +
-    `${highlights}\n\n` +
-    `*Note: Add a \`GEMINI_API_KEY\` to your \`.env.local\` file to unlock full generative summaries and in-depth AI question answering.*`
-  );
+  return `Here are the top stories from Briefly's current 48-hour briefing for "${query}" (covering ${categories}). Explore the referenced articles below for detailed coverage:`;
 }
 
 export async function askNewsAssistant(options: {
@@ -195,7 +190,7 @@ export async function askNewsAssistant(options: {
   const systemInstructionText =
     "You are Briefly's personal AI news assistant. Your job is to answer the reader's question in a calm, clear, objective, and well-written editorial tone. " +
     "Base your answer strictly on the provided recent news stories. If the stories do not contain enough information to answer, state that honestly. " +
-    "Keep answers concise (1 to 3 paragraphs or a few bullet points). Mention relevant publication names or story context when appropriate. " +
+    "Keep answers concise (1 to 3 paragraphs or a few clean bullet points). Mention relevant publication names or story context when appropriate. " +
     "Do not invent facts, hallucinate, or bring in outdated information.";
 
   const userPrompt =
@@ -213,60 +208,55 @@ export async function askNewsAssistant(options: {
     },
   ];
 
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          systemInstruction: {
-            parts: [{ text: systemInstructionText }],
-          },
-          contents,
-          generationConfig: {
-            temperature: 0.3,
-            maxOutputTokens: 800,
-          },
-        }),
-        signal: AbortSignal.timeout(15_000),
-      },
-    );
+  const models = ["gemini-3.5-flash", "gemini-flash-latest"];
+  let answerText: string | null = null;
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("Gemini API error:", response.status, errText);
-      // Fallback on API failure
-      return {
-        answer: buildFallbackAnswer(trimmed, relevantArticles),
-        sources,
-        hasApiKey: true,
-      };
-    }
+  for (const model of models) {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            systemInstruction: {
+              parts: [{ text: systemInstructionText }],
+            },
+            contents,
+            generationConfig: {
+              temperature: 0.3,
+              maxOutputTokens: 800,
+            },
+          }),
+          signal: AbortSignal.timeout(15_000),
+        },
+      );
 
-    const data = (await response.json()) as {
-      candidates?: Array<{
-        content?: {
-          parts?: Array<{ text?: string }>;
+      if (response.ok) {
+        const data = (await response.json()) as {
+          candidates?: Array<{
+            content?: {
+              parts?: Array<{ text?: string }>;
+            };
+          }>;
         };
-      }>;
-    };
 
-    const answerText =
-      data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ??
-      buildFallbackAnswer(trimmed, relevantArticles);
-
-    return {
-      answer: answerText,
-      sources,
-      hasApiKey: true,
-    };
-  } catch (err) {
-    console.error("Error communicating with Gemini:", err);
-    return {
-      answer: buildFallbackAnswer(trimmed, relevantArticles),
-      sources,
-      hasApiKey: true,
-    };
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        if (text) {
+          answerText = text;
+          break;
+        }
+      } else {
+        console.error(`Gemini model ${model} error:`, response.status);
+      }
+    } catch (err) {
+      console.error(`Gemini model ${model} request failed:`, err);
+    }
   }
+
+  return {
+    answer: answerText ?? buildFallbackAnswer(trimmed, relevantArticles),
+    sources,
+    hasApiKey: true,
+  };
 }

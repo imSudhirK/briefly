@@ -343,34 +343,31 @@ button {
   color: var(--text);
 }
 
-.assistant-answer p {
+.assistant-para {
   margin: 0 0 12px;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--text);
 }
 
-.assistant-answer p:last-child {
-  margin-bottom: 0;
+.assistant-para strong,
+.assistant-list-item strong {
+  font-weight: 600;
+  color: var(--text);
 }
 
-.assistant-key-tip {
+.assistant-list {
+  margin: 10px 0 16px;
+  padding-left: 20px;
   display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  margin-top: 18px;
-  padding: 12px 14px;
-  background: #fdfbef;
-  border: 1px solid #fae8a4;
-  border-radius: 10px;
-  font-size: 13px;
-  color: #73510d;
-  line-height: 1.6;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.assistant-key-tip code {
-  background: #fef0c7;
-  padding: 1px 4px;
-  border-radius: 4px;
-  font-family: monospace;
-  font-size: 12px;
+.assistant-list-item {
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--text);
 }
 
 .assistant-sources-section {

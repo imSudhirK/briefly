@@ -48,6 +48,57 @@ function getPageNumbers(
   return [1, "...", current - 1, current, current + 1, "...", total];
 }
 
+function formatAssistantContent(content: string) {
+  const lines = content.split("\n").map((l) => l.trim()).filter(Boolean);
+  const elements: React.ReactNode[] = [];
+  let currentList: React.ReactNode[] = [];
+
+  const formatInline = (text: string) => {
+    const parts = text.split(/(\*\*[^*]+\*\*)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return <strong key={i}>{part.slice(2, -2)}</strong>;
+      }
+      return part;
+    });
+  };
+
+  lines.forEach((line, index) => {
+    if (line.startsWith("•") || line.startsWith("- ") || line.startsWith("* ")) {
+      const cleanLine = line.replace(/^[•\-\*]\s*/, "");
+      currentList.push(
+        <li key={`li-${index}`} className="assistant-list-item">
+          {formatInline(cleanLine)}
+        </li>,
+      );
+    } else {
+      if (currentList.length > 0) {
+        elements.push(
+          <ul key={`ul-${index}`} className="assistant-list">
+            {currentList}
+          </ul>,
+        );
+        currentList = [];
+      }
+      elements.push(
+        <p key={`p-${index}`} className="assistant-para">
+          {formatInline(line)}
+        </p>,
+      );
+    }
+  });
+
+  if (currentList.length > 0) {
+    elements.push(
+      <ul key="ul-end" className="assistant-list">
+        {currentList}
+      </ul>,
+    );
+  }
+
+  return elements;
+}
+
 export default function Home() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [category, setCategory] = useState("all");
@@ -300,21 +351,8 @@ export default function Home() {
               {!assistantLoading && assistantResult && (
                 <div className="assistant-content">
                   <div className="assistant-answer">
-                    {assistantResult.answer.split("\n\n").map((para, i) => (
-                      <p key={i}>{para}</p>
-                    ))}
+                    {formatAssistantContent(assistantResult.answer)}
                   </div>
-
-                  {!assistantResult.hasApiKey && (
-                    <div className="assistant-key-tip">
-                      <span className="tip-icon" aria-hidden="true">💡</span>
-                      <div>
-                        <strong>Supercharge your assistant:</strong> Add{" "}
-                        <code>GEMINI_API_KEY=your_key</code> in{" "}
-                        <code>.env.local</code> to enable full generative analysis and conversational Q&amp;A.
-                      </div>
-                    </div>
-                  )}
 
                   {assistantResult.sources.length > 0 && (
                     <div className="assistant-sources-section">
