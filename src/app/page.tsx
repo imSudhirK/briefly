@@ -131,6 +131,70 @@ export default function Home() {
   const endIndex = Math.min(startIndex + pageSize, filteredArticles.length);
   const currentStories = filteredArticles.slice(startIndex, endIndex);
 
+  // Assistant states
+  const [assistantInput, setAssistantInput] = useState("");
+  const [activeQuestion, setActiveQuestion] = useState("");
+  const [assistantResult, setAssistantResult] = useState<{
+    answer: string;
+    sources: Array<{
+      title: string;
+      url: string;
+      source: string;
+      category: string;
+      publishedAt: string | null;
+      imageUrl: string | null;
+    }>;
+    hasApiKey: boolean;
+  } | null>(null);
+  const [assistantLoading, setAssistantLoading] = useState(false);
+  const [assistantError, setAssistantError] = useState("");
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const assistantCardRef = useRef<HTMLDivElement>(null);
+
+  const SUGGESTED_QUESTIONS = [
+    "Top headlines right now",
+    "Latest in Technology & AI",
+    "Business & market highlights",
+    "World affairs summary",
+  ];
+
+  const handleAskAssistant = async (query: string) => {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+
+    setAssistantLoading(true);
+    setAssistantError("");
+    setActiveQuestion(trimmed);
+    setAssistantOpen(true);
+    setAssistantInput("");
+
+    setTimeout(() => {
+      assistantCardRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }, 80);
+
+    try {
+      const response = await fetch("/api/assistant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: trimmed }),
+      });
+
+      if (!response.ok) {
+        throw new Error("The assistant could not complete your request.");
+      }
+
+      const data = await response.json();
+      setAssistantResult(data);
+    } catch {
+      setAssistantError("Could not reach the assistant. Please try again.");
+    } finally {
+      setAssistantLoading(false);
+    }
+  };
+
   return (
     <main className="page">
       <header className="header">
@@ -146,9 +210,156 @@ export default function Home() {
           technology and business.
         </p>
 
-        <div className="chat-placeholder">
-          <span aria-hidden="true">✳</span>
-          <span>Ask your news assistant — coming soon</span>
+        <div className="assistant-widget">
+          <form
+            className="assistant-search-bar"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleAskAssistant(assistantInput);
+            }}
+          >
+            <span className="assistant-icon" aria-hidden="true">✳</span>
+            <input
+              type="text"
+              className="assistant-input"
+              placeholder="Ask anything about today's news…"
+              value={assistantInput}
+              onChange={(e) => setAssistantInput(e.target.value)}
+              disabled={assistantLoading}
+            />
+            <button
+              type="submit"
+              className="assistant-submit-btn"
+              disabled={!assistantInput.trim() || assistantLoading}
+              aria-label="Ask assistant"
+            >
+              {assistantLoading ? "Thinking…" : "Ask ↵"}
+            </button>
+          </form>
+
+          <div className="assistant-chips" aria-label="Suggested questions">
+            <span className="chips-label">Try:</span>
+            {SUGGESTED_QUESTIONS.map((q) => (
+              <button
+                key={q}
+                type="button"
+                className="chip-btn"
+                onClick={() => void handleAskAssistant(q)}
+                disabled={assistantLoading}
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+
+          {assistantOpen && (
+            <div className="assistant-card" ref={assistantCardRef}>
+              <div className="assistant-card-header">
+                <div className="assistant-query">
+                  <span className="query-badge">Question</span>
+                  <span className="query-text">{activeQuestion}</span>
+                </div>
+                <button
+                  type="button"
+                  className="assistant-close-btn"
+                  onClick={() => {
+                    setAssistantOpen(false);
+                    setAssistantResult(null);
+                    setAssistantError("");
+                  }}
+                  aria-label="Close assistant answer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {assistantLoading && (
+                <div className="assistant-loading">
+                  <div className="pulse-loader" aria-hidden="true">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                  <p>Searching today's news and synthesizing an editorial briefing…</p>
+                </div>
+              )}
+
+              {!assistantLoading && assistantError && (
+                <div className="assistant-error-box">
+                  <p>{assistantError}</p>
+                  <button
+                    type="button"
+                    className="retry-btn"
+                    onClick={() => void handleAskAssistant(activeQuestion)}
+                  >
+                    Try again
+                  </button>
+                </div>
+              )}
+
+              {!assistantLoading && assistantResult && (
+                <div className="assistant-content">
+                  <div className="assistant-answer">
+                    {assistantResult.answer.split("\n\n").map((para, i) => (
+                      <p key={i}>{para}</p>
+                    ))}
+                  </div>
+
+                  {!assistantResult.hasApiKey && (
+                    <div className="assistant-key-tip">
+                      <span className="tip-icon" aria-hidden="true">💡</span>
+                      <div>
+                        <strong>Supercharge your assistant:</strong> Add{" "}
+                        <code>GEMINI_API_KEY=your_key</code> in{" "}
+                        <code>.env.local</code> to enable full generative analysis and conversational Q&amp;A.
+                      </div>
+                    </div>
+                  )}
+
+                  {assistantResult.sources.length > 0 && (
+                    <div className="assistant-sources-section">
+                      <h4 className="sources-title">
+                        Stories referenced in this answer ({assistantResult.sources.length})
+                      </h4>
+                      <div className="sources-grid">
+                        {assistantResult.sources.map((src) => (
+                          <a
+                            key={src.url}
+                            href={src.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="source-card"
+                          >
+                            {src.imageUrl && (
+                              <div className="source-thumb">
+                                <img
+                                  src={src.imageUrl}
+                                  alt=""
+                                  loading="lazy"
+                                  referrerPolicy="no-referrer"
+                                  onError={(e) => {
+                                    const parent = e.currentTarget.parentElement;
+                                    if (parent) parent.style.display = "none";
+                                  }}
+                                />
+                              </div>
+                            )}
+                            <div className="source-details">
+                              <span className="source-category">{src.category}</span>
+                              <h5 className="source-headline">{src.title}</h5>
+                              <span className="source-meta">
+                                {src.source} · Read story ↗
+                              </span>
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </section>
 
