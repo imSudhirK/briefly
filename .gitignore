@@ -1,0 +1,14 @@
+
+node_modules/
+.next/
+out/
+dist/
+.env
+.env.*
+!.env.example
+!.env.local.example
+!.env.test.example
+drizzle/
+*.tsbuildinfo
+.DS_Store
+coverage/
